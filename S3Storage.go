@@ -13,11 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/gabriel-vasile/mimetype"
 	"github.com/goravel/framework/contracts/filesystem"
 	"github.com/goravel/framework/support/file"
 	"github.com/gouniverse/utils"
-	"github.com/mingrammer/cfmt"
 )
 
 // S3Storage implements the StorageInterface for an S3 compliant file storage,
@@ -29,10 +27,13 @@ type S3Storage struct {
 var _ StorageInterface = (*S3Storage)(nil) // verify it extends the task interface
 
 func (s *S3Storage) client() (*s3.Client, error) {
+	endpoint := strings.ReplaceAll(s.disk.Url, "https://", "")
+	endpoint, _ = strings.CutPrefix(endpoint, s.disk.Bucket+".")
+	
 	customResolver := s3.EndpointResolverFunc(func(region string, options s3.EndpointResolverOptions) (aws.Endpoint, error) {
 		return aws.Endpoint{
 			// PartitionID:   "aws",
-			URL: "https://" + s.disk.Url,
+			URL: "https://" + endpoint,
 			// SigningRegion: "us-west-2",
 			HostnameImmutable: true,
 		}, nil
@@ -89,8 +90,10 @@ func (s *S3Storage) DeleteFile(filePaths []string) error {
 	return err
 }
 
+// DeleteDirectory deletes a directory
 func (s *S3Storage) DeleteDirectory(directory string) error {
 	s3Client, err := s.client()
+
 	if err != nil {
 		panic(err)
 	}
@@ -103,9 +106,11 @@ func (s *S3Storage) DeleteDirectory(directory string) error {
 		Bucket: aws.String(s.disk.Bucket),
 		Prefix: aws.String(directory),
 	})
+
 	if err != nil {
 		return err
 	}
+
 	if len(listObjectsV2Response.Contents) == 0 {
 		return nil
 	}
@@ -137,40 +142,51 @@ func (s *S3Storage) DeleteDirectory(directory string) error {
 	return nil
 }
 
+// Directories lists the sub-directories in the specified directory
 func (s *S3Storage) Directories(dir string) []string {
 	s3Client, err := s.client()
+
 	if err != nil {
 		panic(err)
 	}
-	dirs := []string{}
+
 	input := &s3.ListObjectsV2Input{
 		Bucket:    aws.String(s.disk.Bucket),
 		Prefix:    aws.String(s.toValidS3DirPath(dir)),
 		Delimiter: aws.String("/"),
 	}
+
 	ctx := context.TODO()
 	objects, err := s3Client.ListObjectsV2(ctx, input)
+
 	if err != nil {
 		panic(err)
 	}
+
+	dirs := []string{}
 	for _, commonPrefix := range objects.CommonPrefixes {
 		dirs = append(dirs, *commonPrefix.Prefix)
 	}
 	return dirs
 }
 
+// Files lists the files in the specified directory
 func (s *S3Storage) Files(dir string) []string {
 	s3Client, err := s.client()
+
 	if err != nil {
 		panic(err)
 	}
+
 	input := &s3.ListObjectsV2Input{
 		Bucket:    aws.String(s.disk.Bucket),
 		Prefix:    aws.String(s.toValidS3DirPath(dir)),
 		Delimiter: aws.String("/"),
 	}
+
 	ctx := context.TODO()
 	objects, err := s3Client.ListObjectsV2(ctx, input)
+
 	if err != nil {
 		panic(err)
 	}
@@ -187,13 +203,16 @@ func (s *S3Storage) Files(dir string) []string {
 
 func (s *S3Storage) Exists(file string) bool {
 	s3Client, err := s.client()
+
 	if err != nil {
 		panic(err)
 	}
+
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.disk.Bucket),
 		Key:    aws.String(file),
 	}
+
 	ctx := context.TODO()
 
 	_, err = s3Client.HeadObject(ctx, input)
@@ -242,14 +261,16 @@ func (s *S3Storage) Move(oldFile, newFile string) error {
 }
 
 func (s *S3Storage) Put(filePath string, content []byte) error {
-	mimeType := mimetype.Detect(content)
+	// mimeType := mimetype.Detect(content)
 
 	s3Client, err := s.client()
 	if err != nil {
 		panic(err)
 	}
-	cfmt.Successln("File upload: ", filePath)
-	cfmt.Successln("Mimetype: ", mimeType)
+
+	// cfmt.Successln("File upload: ", filePath)
+	// cfmt.Successln("Mimetype: ", mimeType)
+
 	size := int64(len(content))
 	input := &s3.PutObjectInput{
 		Bucket: aws.String(s.disk.Bucket),
@@ -335,10 +356,6 @@ func (s *S3Storage) LastModified(file string) time.Time {
 }
 
 func (s *S3Storage) Url(file string) string {
-	// cfmt.Errorln("Disk URL: ", s.disk.Url)
-	// cfmt.Errorln("Disk Key: ", s.disk.Key)
-	// cfmt.Errorln("Config Media Endpoint: ", config.MediaEndpoint)
-	// cfmt.Errorln("Config Media Key: ", config.MediaKey)
 	return strings.TrimSuffix(s.disk.Url, "/") + "/" + strings.TrimPrefix(file, "/")
 }
 
@@ -352,6 +369,7 @@ func (s *S3Storage) toValidS3DirPath(path string) string {
 	realPath := strings.TrimPrefix(path, "./")
 	realPath = strings.TrimPrefix(realPath, "/")
 	realPath = strings.TrimPrefix(realPath, ".")
+
 	if realPath != "" && !strings.HasSuffix(realPath, "/") {
 		realPath += "/"
 	}
@@ -361,6 +379,7 @@ func (s *S3Storage) toValidS3DirPath(path string) string {
 
 func fullPathOfFile(filePath string, source filesystem.File, name string) (string, error) {
 	extension := path.Ext(name)
+
 	if extension == "" {
 		var err error
 		extension, err = file.Extension(source.File(), true)
