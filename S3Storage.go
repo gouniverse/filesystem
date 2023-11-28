@@ -28,7 +28,8 @@ var _ StorageInterface = (*S3Storage)(nil) // verify it extends the task interfa
 
 func (s *S3Storage) client() (*s3.Client, error) {
 	endpoint := strings.ReplaceAll(s.disk.Url, "https://", "")
-	endpoint, _ = strings.CutPrefix(endpoint, s.disk.Bucket+".")
+	endpoint, _ = strings.CutPrefix(endpoint, s.disk.Bucket+".") // remove bucket prefix (i.e. DigitalOcean Spaces)
+	endpoint, _ = strings.CutSuffix(endpoint, "/"+s.disk.Bucket) // remove bucket suffix (i.e. Minio)
 	
 	customResolver := s3.EndpointResolverFunc(func(region string, options s3.EndpointResolverOptions) (aws.Endpoint, error) {
 		return aws.Endpoint{
