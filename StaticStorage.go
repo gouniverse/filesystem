@@ -20,43 +20,43 @@ func (s *StaticStorage) Copy(originFile, targetFile string) error {
 }
 
 func (s *StaticStorage) DeleteFile(filePaths []string) error {
-	return errors.New("not supported")
+	return errors.New("not implemented")
 }
 
 func (s *StaticStorage) DeleteDirectory(dirPath string) error {
-	return errors.New("not supported")
+	return errors.New("not implemented")
 }
 
-func (s *StaticStorage) Directories(dirPath string) []string {
-	return []string{}
+func (s *StaticStorage) Directories(dirPath string) ([]string, error) {
+	return []string{}, errors.New("not implemented")
 }
 
 // implement StorageInterface
 
-func (s *StaticStorage) Files(dirPath string) []string {
-	return []string{}
+func (s *StaticStorage) Files(dirPath string) ([]string, error) {
+	return []string{}, errors.New("not implemented")
 }
 
 func (s *StaticStorage) MakeDirectory(dirPath string) error {
-	return errors.New("not supported")
+	return errors.New("not implemented")
 }
 
-func (s *StaticStorage) LastModified(filePath string) time.Time {
-	return time.Time{}
+func (s *StaticStorage) LastModified(filePath string) (time.Time, error) {
+	return time.Time{}, errors.New("not implemented")
 }
 
 func (s *StaticStorage) Move(originFile, targetFile string) error {
-	return errors.New("not supported")
+	return errors.New("not implemented")
 }
 
-func (s *StaticStorage) Size(filePath string) int64 {
-	return 0
+func (s *StaticStorage) Size(filePath string) (int64, error) {
+	return -1, errors.New("not implemented")
 }
 
-func (s *StaticStorage) Url(filePath string) string {
-	return strings.TrimRight(s.disk.Url, "/") + "/" + strings.TrimLeft(filePath, "/")
+func (s *StaticStorage) Url(filePath string) (string, error) {
+	return strings.TrimRight(s.disk.Url, "/") + "/" + strings.TrimLeft(filePath, "/"), errors.New("not implemented")
 }
 
 func (s *StaticStorage) Put(filePath string, content []byte) error {
-	return errors.New("not supported")
+	return errors.New("not implemented")
 }

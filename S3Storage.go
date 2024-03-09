@@ -30,7 +30,7 @@ func (s *S3Storage) client() (*s3.Client, error) {
 	endpoint := strings.ReplaceAll(s.disk.Url, "https://", "")
 	endpoint, _ = strings.CutPrefix(endpoint, s.disk.Bucket+".") // remove bucket prefix (i.e. DigitalOcean Spaces)
 	endpoint, _ = strings.CutSuffix(endpoint, "/"+s.disk.Bucket) // remove bucket suffix (i.e. Minio)
-	
+
 	customResolver := s3.EndpointResolverFunc(func(region string, options s3.EndpointResolverOptions) (aws.Endpoint, error) {
 		return aws.Endpoint{
 			// PartitionID:   "aws",
@@ -144,7 +144,7 @@ func (s *S3Storage) DeleteDirectory(directory string) error {
 }
 
 // Directories lists the sub-directories in the specified directory
-func (s *S3Storage) Directories(dir string) []string {
+func (s *S3Storage) Directories(dir string) ([]string, error) {
 	s3Client, err := s.client()
 
 	if err != nil {
@@ -161,22 +161,23 @@ func (s *S3Storage) Directories(dir string) []string {
 	objects, err := s3Client.ListObjectsV2(ctx, input)
 
 	if err != nil {
-		panic(err)
+		return []string{}, err
 	}
 
 	dirs := []string{}
 	for _, commonPrefix := range objects.CommonPrefixes {
 		dirs = append(dirs, *commonPrefix.Prefix)
 	}
-	return dirs
+
+	return dirs, nil
 }
 
 // Files lists the files in the specified directory
-func (s *S3Storage) Files(dir string) []string {
+func (s *S3Storage) Files(dir string) ([]string, error) {
 	s3Client, err := s.client()
 
 	if err != nil {
-		panic(err)
+		return []string{}, err
 	}
 
 	input := &s3.ListObjectsV2Input{
@@ -199,7 +200,8 @@ func (s *S3Storage) Files(dir string) []string {
 		}
 		files = append(files, *object.Key)
 	}
-	return files
+
+	return files, nil
 }
 
 func (s *S3Storage) Exists(file string) bool {
@@ -314,10 +316,10 @@ func (s *S3Storage) PutFileAs(filePath string, source filesystem.File, name stri
 	return fullPath, nil
 }
 
-func (s *S3Storage) Size(file string) int64 {
+func (s *S3Storage) Size(file string) (int64, error) {
 	s3Client, err := s.client()
 	if err != nil {
-		panic(err)
+		return -1, err
 	}
 
 	ctx := context.TODO()
@@ -327,37 +329,41 @@ func (s *S3Storage) Size(file string) int64 {
 		Key:    aws.String(file),
 	})
 	if err != nil {
-		return -1
+		return -1, err
 	}
 
-	return *resp.ContentLength
+	return *resp.ContentLength, nil
 }
 
-func (s *S3Storage) LastModified(file string) time.Time {
+func (s *S3Storage) LastModified(file string) (time.Time, error) {
 	s3Client, err := s.client()
+
 	if err != nil {
-		panic(err)
+		return time.Time{}, err
 	}
+
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.disk.Bucket),
 		Key:    aws.String(file),
 	}
 	ctx := context.TODO()
 	resp, err := s3Client.HeadObject(ctx, input)
+
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, err
 	}
 
 	l, err := time.LoadLocation("Europe/London")
+
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, err
 	}
 
-	return aws.ToTime(resp.LastModified).In(l)
+	return aws.ToTime(resp.LastModified).In(l), nil
 }
 
-func (s *S3Storage) Url(file string) string {
-	return strings.TrimSuffix(s.disk.Url, "/") + "/" + strings.TrimPrefix(file, "/")
+func (s *S3Storage) Url(file string) (string, error) {
+	return strings.TrimSuffix(s.disk.Url, "/") + "/" + strings.TrimPrefix(file, "/"), nil
 }
 
 // toValidS3DirPath trims "./" and "/" prefixes/suffixes from a given path and
