@@ -20,6 +20,13 @@ func NewStorage(disk Disk) (StorageInterface, error) {
 	// 		UsePathStyleEndpoint: true,
 	// 	},
 	// 	CDN: {
+	// 		DiskName: SQL,
+	// 		Driver:   DRIVER_SQL,
+	// 		DB:      db,
+	//      TableName: "filestore",
+	// 		Url:      config.STORAGE_URL,
+	// 	},
+	// 	CDN: {
 	// 		DiskName: CDN,
 	// 		Driver:   DRIVER_STATIC,
 	// 		Url:      config.CDN_MEDIA_URL,
@@ -57,6 +64,15 @@ func NewStorage(disk Disk) (StorageInterface, error) {
 			disk: disk,
 		}
 		return storage, nil
+	}
+
+	if disk.Driver == DRIVER_SQL {
+		return NewSqlStorage(SqlStorageOptions{
+			DB:                 disk.DB,
+			FilestoreTable:     disk.TableName,
+			AutomigrateEnabled: true,
+			URL:                disk.Url,
+		})
 	}
 
 	if disk.Driver == DRIVER_STATIC {

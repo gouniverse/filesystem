@@ -24,7 +24,7 @@ type S3Storage struct {
 	disk Disk
 }
 
-var _ StorageInterface = (*S3Storage)(nil) // verify it extends the task interface
+var _ StorageInterface = (*S3Storage)(nil) // verify it extends the storage interface
 
 func (s *S3Storage) client() (*s3.Client, error) {
 	endpoint := strings.ReplaceAll(s.disk.Url, "https://", "")
