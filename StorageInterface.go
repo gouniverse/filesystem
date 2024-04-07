@@ -2,6 +2,7 @@ package filesystem
 
 import "time"
 
+// DirectoryStorageInterface represents the interface of a directory storage
 type DirectoryStorageInterface interface {
 	// DirectoriesList returns a slice of all the directories within the given directory.
 	DirectoriesList(dir string) (dirs []string, err error)
@@ -28,6 +29,7 @@ type DirectoryStorageInterface interface {
 	DirectoryUrl(dirPath string) (url string, err error)
 }
 
+// FileStorageInterface represents the interface of a file storage
 type FileStorageInterface interface {
 	// FileCopy copies a file to a new location.
 	FileCopy(originFilePath, targetFilePath string) (err error)
@@ -60,6 +62,6 @@ type StorageInterface interface {
 	// Exists checks if a file or directory exists.
 	Exists(filePath string) (exists bool, err error)
 
-	// Move moves a file to a new location.
+	// Move moves a file or directory to a new location.
 	Move(originFile, targetFile string) (err error)
 }
