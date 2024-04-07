@@ -31,7 +31,9 @@ func (s *StaticStorage) Directories(dirPath string) ([]string, error) {
 	return []string{}, errors.New("not implemented")
 }
 
-// implement StorageInterface
+func (s *StaticStorage) Exists(filePath string) (bool, error) {
+	return false, errors.New("not implemented")
+}
 
 func (s *StaticStorage) Files(dirPath string) ([]string, error) {
 	return []string{}, errors.New("not implemented")
@@ -47,6 +49,10 @@ func (s *StaticStorage) LastModified(filePath string) (time.Time, error) {
 
 func (s *StaticStorage) Move(originFile, targetFile string) error {
 	return errors.New("not implemented")
+}
+
+func (s *StaticStorage) ReadFile(filePath string) ([]byte, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (s *StaticStorage) Size(filePath string) (int64, error) {

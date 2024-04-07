@@ -190,7 +190,7 @@ func (s *S3Storage) Files(dir string) ([]string, error) {
 	objects, err := s3Client.ListObjectsV2(ctx, input)
 
 	if err != nil {
-		panic(err)
+		return []string{}, err
 	}
 
 	files := []string{}
@@ -204,11 +204,11 @@ func (s *S3Storage) Files(dir string) ([]string, error) {
 	return files, nil
 }
 
-func (s *S3Storage) Exists(file string) bool {
+func (s *S3Storage) Exists(file string) (bool, error) {
 	s3Client, err := s.client()
 
 	if err != nil {
-		panic(err)
+		return false, err
 	}
 
 	input := &s3.HeadObjectInput{
@@ -220,7 +220,7 @@ func (s *S3Storage) Exists(file string) bool {
 
 	_, err = s3Client.HeadObject(ctx, input)
 
-	return err == nil
+	return err == nil, err
 }
 
 // func (r *S3) Get(file string) (string, error) {
@@ -251,8 +251,9 @@ func (s *S3Storage) MakeDirectory(directory string) error {
 	return s.Put(directory, []byte(""))
 }
 
-func (s *S3Storage) Missing(file string) bool {
-	return !s.Exists(file)
+func (s *S3Storage) Missing(file string) (bool, error) {
+	exists, err := s.Exists(file)
+	return !exists, err
 }
 
 func (s *S3Storage) Move(oldFile, newFile string) error {
@@ -314,6 +315,31 @@ func (s *S3Storage) PutFileAs(filePath string, source filesystem.File, name stri
 	}
 
 	return fullPath, nil
+}
+
+func (s *S3Storage) ReadFile(file string) ([]byte, error) {
+	s3Client, err := s.client()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.TODO()
+
+	resp, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.disk.Bucket),
+		Key:    aws.String(file),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 func (s *S3Storage) Size(file string) (int64, error) {
