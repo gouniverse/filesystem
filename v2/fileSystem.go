@@ -32,13 +32,13 @@ func (f *fileSystem) DirectoryExists(path string) bool {
 	return f.adapter.DirectoryExists(path)
 }
 
-func (f *fileSystem) DirectoryList(path string) ([]string, error) {
-	return f.adapter.DirectoryList(path)
+func (f *fileSystem) DirectoriesList(path string) ([]string, error) {
+	return f.adapter.DirectoriesList(path)
 }
 
-func (f *fileSystem) DirectoriesDelete(path []string) error {
-	return f.adapter.DirectoriesDelete(path)
-}
+// func (f *fileSystem) DirectoriesDelete(path []string) error {
+// 	return f.adapter.DirectoriesDelete(path)
+// }
 
 func (f *fileSystem) Exists(path string) bool {
 	return f.adapter.Exists(path)
@@ -56,8 +56,8 @@ func (f *fileSystem) FileExists(path string) bool {
 	return f.adapter.FileExists(path)
 }
 
-func (f *fileSystem) FileList(path string) ([]string, error) {
-	return f.adapter.FileList(path)
+func (f *fileSystem) FilesList(path string) ([]string, error) {
+	return f.adapter.FilesList(path)
 }
 
 func (f *fileSystem) FileRead(path string) (string, error) {
