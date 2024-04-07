@@ -2,12 +2,14 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"path"
+	"sort"
+	"time"
 
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -49,50 +51,68 @@ func (s *S3Storage) client() (*s3.Client, error) {
 	return client, nil
 }
 
-func (s *S3Storage) Copy(originFile, targetFile string) error {
+// Directories lists the sub-directories in the specified directory
+func (s *S3Storage) DirectoriesList(dir string) ([]string, error) {
 	s3Client, err := s.client()
+
 	if err != nil {
 		panic(err)
 	}
-	ctx := context.TODO()
-	_, err = s3Client.CopyObject(ctx, &s3.CopyObjectInput{
-		Bucket:     aws.String(s.disk.Bucket),
-		CopySource: aws.String(s.disk.Bucket + "/" + originFile),
-		Key:        aws.String(targetFile),
-	})
 
-	return err
+	input := &s3.ListObjectsV2Input{
+		Bucket:    aws.String(s.disk.Bucket),
+		Prefix:    aws.String(s.toValidS3DirPath(dir)),
+		Delimiter: aws.String("/"),
+	}
+
+	ctx := context.TODO()
+	objects, err := s3Client.ListObjectsV2(ctx, input)
+
+	if err != nil {
+		return []string{}, err
+	}
+
+	dirs := []string{}
+	for _, commonPrefix := range objects.CommonPrefixes {
+		dirs = append(dirs, *commonPrefix.Prefix)
+	}
+
+	return dirs, nil
 }
 
-func (s *S3Storage) DeleteFile(filePaths []string) error {
+func (s *S3Storage) DirectoryCopy(originDirPath, targetDirPath string) error {
+	return errors.New("not implemented")
+}
+
+func (s *S3Storage) DirectoryCreate(dirPath string) error {
+	if !strings.HasSuffix(dirPath, "/") {
+		dirPath += "/"
+	}
+
+	return s.FilePut(dirPath, []byte(""))
+}
+
+func (s *S3Storage) DirectorySize(file string) (int64, error) {
 	s3Client, err := s.client()
 	if err != nil {
-		panic(err)
+		return -1, err
 	}
 
-	var objectIdentifiers []types.ObjectIdentifier
-	for _, file := range filePaths {
-		objectIdentifiers = append(objectIdentifiers, types.ObjectIdentifier{
-			Key: aws.String(file),
-		})
-	}
+	ctx := context.TODO()
 
-	quiet := true
-	input := &s3.DeleteObjectsInput{
+	resp, err := s3Client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(s.disk.Bucket),
-		Delete: &types.Delete{
-			Objects: objectIdentifiers,
-			Quiet:   &quiet,
-		},
+		Key:    aws.String(file),
+	})
+	if err != nil {
+		return -1, err
 	}
-	ctx := context.TODO()
-	_, err = s3Client.DeleteObjects(ctx, input)
 
-	return err
+	return *resp.ContentLength, nil
 }
 
-// DeleteDirectory deletes a directory
-func (s *S3Storage) DeleteDirectory(directory string) error {
+// DirectoryDelete deletes a directory
+func (s *S3Storage) DirectoryDelete(directory string) error {
 	s3Client, err := s.client()
 
 	if err != nil {
@@ -143,37 +163,81 @@ func (s *S3Storage) DeleteDirectory(directory string) error {
 	return nil
 }
 
-// Directories lists the sub-directories in the specified directory
-func (s *S3Storage) Directories(dir string) ([]string, error) {
-	s3Client, err := s.client()
+func (s *S3Storage) DirectoryUrl(dirPath string) (string, error) {
+	return strings.TrimSuffix(s.disk.Url, "/") + "/" + strings.TrimPrefix(dirPath, "/"), nil
+}
 
+func (s *S3Storage) FileCopy(originFile, targetFile string) error {
+	s3Client, err := s.client()
+	if err != nil {
+		panic(err)
+	}
+	ctx := context.TODO()
+	_, err = s3Client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(s.disk.Bucket),
+		CopySource: aws.String(s.disk.Bucket + "/" + originFile),
+		Key:        aws.String(targetFile),
+	})
+
+	return err
+}
+
+func (s *S3Storage) FileDelete(filePaths []string) error {
+	s3Client, err := s.client()
 	if err != nil {
 		panic(err)
 	}
 
-	input := &s3.ListObjectsV2Input{
-		Bucket:    aws.String(s.disk.Bucket),
-		Prefix:    aws.String(s.toValidS3DirPath(dir)),
-		Delimiter: aws.String("/"),
+	var objectIdentifiers []types.ObjectIdentifier
+	for _, file := range filePaths {
+		objectIdentifiers = append(objectIdentifiers, types.ObjectIdentifier{
+			Key: aws.String(file),
+		})
 	}
 
+	quiet := true
+	input := &s3.DeleteObjectsInput{
+		Bucket: aws.String(s.disk.Bucket),
+		Delete: &types.Delete{
+			Objects: objectIdentifiers,
+			Quiet:   &quiet,
+		},
+	}
 	ctx := context.TODO()
-	objects, err := s3Client.ListObjectsV2(ctx, input)
+	_, err = s3Client.DeleteObjects(ctx, input)
+
+	return err
+}
+
+func (s *S3Storage) FileLastModified(file string) (time.Time, error) {
+	s3Client, err := s.client()
 
 	if err != nil {
-		return []string{}, err
+		return time.Time{}, err
 	}
 
-	dirs := []string{}
-	for _, commonPrefix := range objects.CommonPrefixes {
-		dirs = append(dirs, *commonPrefix.Prefix)
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(s.disk.Bucket),
+		Key:    aws.String(file),
+	}
+	ctx := context.TODO()
+	resp, err := s3Client.HeadObject(ctx, input)
+
+	if err != nil {
+		return time.Time{}, err
 	}
 
-	return dirs, nil
+	l, err := time.LoadLocation("Europe/London")
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return aws.ToTime(resp.LastModified).In(l), nil
 }
 
 // Files lists the files in the specified directory
-func (s *S3Storage) Files(dir string) ([]string, error) {
+func (s *S3Storage) FilesList(dir string) ([]string, error) {
 	s3Client, err := s.client()
 
 	if err != nil {
@@ -202,6 +266,115 @@ func (s *S3Storage) Files(dir string) ([]string, error) {
 	}
 
 	return files, nil
+}
+
+func (s *S3Storage) FileMove(oldFile, newFile string) error {
+	if err := s.FileCopy(oldFile, newFile); err != nil {
+		return err
+	}
+
+	return s.FileDelete([]string{oldFile})
+}
+
+func (s *S3Storage) FilePut(filePath string, content []byte) error {
+	// mimeType := mimetype.Detect(content)
+
+	s3Client, err := s.client()
+	if err != nil {
+		panic(err)
+	}
+
+	// cfmt.Successln("File upload: ", filePath)
+	// cfmt.Successln("Mimetype: ", mimeType)
+
+	size := int64(len(content))
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(s.disk.Bucket),
+		Key:    aws.String(filePath),
+		Body:   strings.NewReader(string(content)),
+		// ContentLength:      int64(len(content)),
+		// ContentType:        aws.String(mtype.String()),
+		// Body:               bytes.NewReader(buffer),
+		ContentLength:      &size,
+		ContentType:        aws.String(http.DetectContentType(content)),
+		ContentDisposition: aws.String("attachment"),
+		ACL:                types.ObjectCannedACLPublicRead,
+		// ACL:                aws.String("public-read"),
+	}
+
+	_, err = s3Client.PutObject(context.TODO(), input)
+
+	return err
+}
+
+func (s *S3Storage) FileRead(file string) ([]byte, error) {
+	s3Client, err := s.client()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.TODO()
+
+	resp, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.disk.Bucket),
+		Key:    aws.String(file),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (s *S3Storage) FileSize(file string) (int64, error) {
+	s3Client, err := s.client()
+	if err != nil {
+		return -1, err
+	}
+
+	ctx := context.TODO()
+
+	resp, err := s3Client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.disk.Bucket),
+		Key:    aws.String(file),
+	})
+	if err != nil {
+		return -1, err
+	}
+
+	return *resp.ContentLength, nil
+}
+
+func (s *S3Storage) FileUpload(filePath string, source filesystem.File) (string, error) {
+	return s.FileUploadAs(filePath, source, utils.StrRandom(40))
+}
+
+func (s *S3Storage) FileUploadAs(filePath string, source filesystem.File, name string) (string, error) {
+	fullPath, err := fullPathOfFile(filePath, source, name)
+	if err != nil {
+		return "", err
+	}
+
+	data, err := ioutil.ReadFile(source.File())
+	if err != nil {
+		return "", err
+	}
+
+	if err := s.FilePut(fullPath, data); err != nil {
+		return "", err
+	}
+
+	return fullPath, nil
+}
+
+func (s *S3Storage) FileUrl(filePath string) (string, error) {
+	return strings.TrimSuffix(s.disk.Url, "/") + "/" + strings.TrimPrefix(filePath, "/"), nil
 }
 
 func (s *S3Storage) Exists(file string) (bool, error) {
@@ -243,12 +416,25 @@ func (s *S3Storage) Exists(file string) (bool, error) {
 // 	return string(data), nil
 // }
 
-func (s *S3Storage) MakeDirectory(directory string) error {
-	if !strings.HasSuffix(directory, "/") {
-		directory += "/"
+// Lists the directories and files in the specified directory
+func (s *S3Storage) List(dir string) ([]string, error) {
+	dirList, err := s.DirectoriesList(dir)
+
+	if err != nil {
+		return nil, err
 	}
 
-	return s.Put(directory, []byte(""))
+	fileList, err := s.FilesList(dir)
+
+	if err != nil {
+		return nil, err
+	}
+
+	list := append(dirList, fileList...)
+
+	sort.Strings(list)
+
+	return list, nil
 }
 
 func (s *S3Storage) Missing(file string) (bool, error) {
@@ -256,140 +442,8 @@ func (s *S3Storage) Missing(file string) (bool, error) {
 	return !exists, err
 }
 
-func (s *S3Storage) Move(oldFile, newFile string) error {
-	if err := s.Copy(oldFile, newFile); err != nil {
-		return err
-	}
-
-	return s.DeleteFile([]string{oldFile})
-}
-
-func (s *S3Storage) Put(filePath string, content []byte) error {
-	// mimeType := mimetype.Detect(content)
-
-	s3Client, err := s.client()
-	if err != nil {
-		panic(err)
-	}
-
-	// cfmt.Successln("File upload: ", filePath)
-	// cfmt.Successln("Mimetype: ", mimeType)
-
-	size := int64(len(content))
-	input := &s3.PutObjectInput{
-		Bucket: aws.String(s.disk.Bucket),
-		Key:    aws.String(filePath),
-		Body:   strings.NewReader(string(content)),
-		// ContentLength:      int64(len(content)),
-		// ContentType:        aws.String(mtype.String()),
-		// Body:               bytes.NewReader(buffer),
-		ContentLength:      &size,
-		ContentType:        aws.String(http.DetectContentType(content)),
-		ContentDisposition: aws.String("attachment"),
-		ACL:                types.ObjectCannedACLPublicRead,
-		// ACL:                aws.String("public-read"),
-	}
-
-	_, err = s3Client.PutObject(context.TODO(), input)
-
-	return err
-}
-
-func (s *S3Storage) PutFile(filePath string, source filesystem.File) (string, error) {
-	return s.PutFileAs(filePath, source, utils.StrRandom(40))
-}
-
-func (s *S3Storage) PutFileAs(filePath string, source filesystem.File, name string) (string, error) {
-	fullPath, err := fullPathOfFile(filePath, source, name)
-	if err != nil {
-		return "", err
-	}
-
-	data, err := ioutil.ReadFile(source.File())
-	if err != nil {
-		return "", err
-	}
-
-	if err := s.Put(fullPath, data); err != nil {
-		return "", err
-	}
-
-	return fullPath, nil
-}
-
-func (s *S3Storage) ReadFile(file string) ([]byte, error) {
-	s3Client, err := s.client()
-	if err != nil {
-		return nil, err
-	}
-
-	ctx := context.TODO()
-
-	resp, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.disk.Bucket),
-		Key:    aws.String(file),
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
-}
-
-func (s *S3Storage) Size(file string) (int64, error) {
-	s3Client, err := s.client()
-	if err != nil {
-		return -1, err
-	}
-
-	ctx := context.TODO()
-
-	resp, err := s3Client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: aws.String(s.disk.Bucket),
-		Key:    aws.String(file),
-	})
-	if err != nil {
-		return -1, err
-	}
-
-	return *resp.ContentLength, nil
-}
-
-func (s *S3Storage) LastModified(file string) (time.Time, error) {
-	s3Client, err := s.client()
-
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	input := &s3.HeadObjectInput{
-		Bucket: aws.String(s.disk.Bucket),
-		Key:    aws.String(file),
-	}
-	ctx := context.TODO()
-	resp, err := s3Client.HeadObject(ctx, input)
-
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	l, err := time.LoadLocation("Europe/London")
-
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return aws.ToTime(resp.LastModified).In(l), nil
-}
-
-func (s *S3Storage) Url(file string) (string, error) {
-	return strings.TrimSuffix(s.disk.Url, "/") + "/" + strings.TrimPrefix(file, "/"), nil
+func (s *S3Storage) Move(fromPath string, toPath string) error {
+	return errors.New("not implemented")
 }
 
 // toValidS3DirPath trims "./" and "/" prefixes/suffixes from a given path and

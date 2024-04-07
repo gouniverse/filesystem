@@ -25,7 +25,7 @@ func TestSqlStoragePut(t *testing.T) {
 
 	s, err := NewSqlStorage(SqlStorageOptions{
 		DB:                 db,
-		FilestoreTable:     "sqlstore",
+		FilestoreTable:     "sql_store",
 		AutomigrateEnabled: true,
 	})
 
@@ -37,7 +37,7 @@ func TestSqlStoragePut(t *testing.T) {
 		t.Fatal("NewSqlStorage() returned nil")
 	}
 
-	err = s.Put("test.txt", []byte("test"))
+	err = s.FilePut("test.txt", []byte("test"))
 
 	if err != nil {
 		t.Fatal("unexpected error:", err)
@@ -49,7 +49,7 @@ func TestSqlStorageReadFile(t *testing.T) {
 
 	s, err := NewSqlStorage(SqlStorageOptions{
 		DB:                 db,
-		FilestoreTable:     "sqlstore",
+		FilestoreTable:     "sql_store",
 		AutomigrateEnabled: true,
 	})
 
@@ -61,13 +61,13 @@ func TestSqlStorageReadFile(t *testing.T) {
 		t.Fatal("NewSqlStorage() returned nil")
 	}
 
-	err = s.Put("test.txt", []byte("test"))
+	err = s.FilePut("test.txt", []byte("test"))
 
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
-	data, err := s.ReadFile("test.txt")
+	data, err := s.FileRead("test.txt")
 
 	if err != nil {
 		t.Fatal("unexpected error:", err)
