@@ -92,8 +92,8 @@ func (f *fileSystem) List(path string) ([]string, error) {
 	return f.adapter.List(path)
 }
 
-func (f *fileSystem) MimeType(path string) (string, error) {
-	return f.adapter.MimeType(path)
+func (f *fileSystem) FileMimeType(path string) (string, error) {
+	return f.adapter.FileMimeType(path)
 }
 
 func (f *fileSystem) Move(originPath string, targetPath string) error {
