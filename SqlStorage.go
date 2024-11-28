@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dromara/carbon/v2"
 	"github.com/emirpasic/gods/utils"
-	"github.com/golang-module/carbon/v2"
 	"github.com/gouniverse/sb"
 	"github.com/gouniverse/sqlfilestore"
 )
